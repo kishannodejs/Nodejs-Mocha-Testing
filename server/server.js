@@ -80,7 +80,7 @@ app.patch('/todos/:id', authenticate, (req, res) => {
   var id = req.params.id;
   var body = _.pick(req.body, ['text', 'completed']);
 
-  if(!ObjectID.isValid(id)) return res.status(400).send({error: 'something went worng!'});
+  if(!ObjectID.isValid(id)) return res.status(400).send({error: 'something went worng! '});
 
   if(_.isBoolean(body.completed) && body.completed){
     body.completedAt = new Date().getTime();
