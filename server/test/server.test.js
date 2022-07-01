@@ -4,14 +4,16 @@ const {ObjectID} = require('mongodb');
 
 const {app} = require('./../server');
 const {Todo} = require('./../models/todo');
+const {Myke} = require('./../models/myke');
 const {User} = require('./../models/user');
-const {todos, addDummyTodoItems, users,  addDummyUsers} = require('./seed/seed')
+const {todos, addDummyTodoItems, mykes, addDummyMykeItems, users,  addDummyUsers} = require('./seed/seed')
 
 
 
 
 beforeEach(addDummyUsers);
 beforeEach(addDummyTodoItems);
+beforeEach(addDummyMykeItems);
 
 describe('POST /todos', () => {
   it('should create a new todo', (done) => {
@@ -226,6 +228,228 @@ describe('PATCH /todos/:id', () => {
       .end(done);
   })
 });
+
+
+
+
+
+
+describe('POST /mykes', () => {
+  it('should create a new myke', (done) => {
+    var text = 'Testing myke route';
+
+    request(app)
+      .post('/mykes')
+      .set('x-auth', users[0].tokens[0].token)
+      .send({text})
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.text).toBe(text);
+      })
+      .end((err, res) => {
+        if(err) return done(err);
+
+        Myke.find({text}).then((mykes) => {
+          expect(mykes.length).toBe(1);
+          expect(mykes[0].text).toBe(text);
+          done();
+        }).catch((err) => {
+          done(err);
+        });
+      });
+  });
+
+  it('should not create myke with invaild nody data', (done) => {
+    request(app)
+      .post('/mykes')
+      .set('x-auth', users[0].tokens[0].token)
+      .send({})
+      .expect(400)
+      .end((err, res) => {
+        if(err) return done(err);
+
+        Myke.find().then((mykes) => {
+          expect(mykes.length).toBe(2);
+          done();
+        }).catch((err) => {
+          done(err);
+        })
+      })
+  });
+});
+
+describe('Get /mykes', () => {
+  it('should get all mykes', (done) => {
+    request(app)
+      .get('/mykes')
+      .set('x-auth', users[0].tokens[0].token)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.mykes.length).toBe(1)
+      })
+      .end(done);
+  })
+});
+
+describe('GET /mykes/:id', () => {
+  it('should return myke doc by id', (done) => {
+    request(app)
+      .get(`/mykes/${mykes[0]._id.toHexString()}`)
+      .set('x-auth', users[0].tokens[0].token)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.myke.text).toBe(mykes[0].text);
+      })
+      .end(done);
+  });
+
+  it('should return myke doc created by other user.', (done) => {
+    request(app)
+      .get(`/mykes/${mykes[1]._id.toHexString()}`)
+      .set('x-auth', users[0].tokens[0].token)
+      .expect(404)
+      .end(done);
+  });
+
+  it('Should return 404 if myke is not found', (done) => {
+    var hexID = new ObjectID().toHexString();
+
+    request(app)
+      .get(`/mykes/${hexID}`)
+      .set('x-auth', users[0].tokens[0].token)
+      .expect(404)
+      .end(done);
+  })
+
+  it('Should returb 404 for non-object ids', (done) => {
+    request(app)
+      .get('/mykes/123abc')
+      .set('x-auth', users[0].tokens[0].token)
+      .expect(400)
+      .end(done);
+  });
+});
+
+describe('DELETE /mykes/:id', () => {
+  it('Should remove a myke', (done) => {
+    var hexId = mykes[1]._id.toHexString();
+
+    request(app)
+      .delete(`/mykes/${hexId}`)
+      .set('x-auth', users[1].tokens[0].token)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.myke._id).toBe(hexId);
+      })
+      .end((err, res) => {
+        if(err) return done(err);
+
+        Myke.findById(hexId).then((myke) => {
+          expect(myke).toBeNull();
+          done();
+        }).catch((err) => {
+          done(err);
+        })
+      })
+  });
+
+  it('Should not remove a myke if form diffrent user', (done) => {
+    var hexId = mykes[0]._id.toHexString();
+
+    request(app)
+      .delete(`/mykes/${hexId}`)
+      .set('x-auth', users[1].tokens[0].token)
+      .expect(404)
+      .end((err, res) => {
+        if(err) return done(err);
+
+        Myke.findById(hexId).then((myke) => {
+          expect(myke).not.toBeNull();
+          done();
+        }).catch((err) => {
+          done(err);
+        })
+      })
+  });
+
+  it('Should return 404 if myke not found', (done) => {
+    var hexID = new ObjectID().toHexString();
+
+    request(app)
+      .delete(`/mykes/${hexID}`)
+      .set('x-auth', users[1].tokens[0].token)
+      .expect(404)
+      .end(done);
+  });
+
+  it('Should return 400 if ObjectID is invalid', (done) => {
+    request(app)
+      .delete('/mykes/123abc')
+      .set('x-auth', users[1].tokens[0].token)
+      .expect(400)
+      .end(done);
+  })
+});
+
+describe('PATCH /mykes/:id', () => {
+  it('Should update the myke', (done) => {
+    var hexId = mykes[0]._id.toHexString();
+    var text = "This should be the new text";
+
+    request(app)
+      .patch(`/mykes/${hexId}`)
+      .set('x-auth', users[0].tokens[0].token)
+      .send({
+        completed: true,
+        text
+      })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.myke.text).toBe(text);
+        expect(res.body.myke.completed).toBe(true);
+        expect(typeof parseInt(res.body.myke.completedAt)).toBe('number');
+      })
+      .end(done);
+  });
+
+  it('Should not update the myke if created by other user', (done) => {
+    var hexId = mykes[0]._id.toHexString();
+    var text = "This should be the new text";
+
+    request(app)
+      .patch(`/mykes/${hexId}`)
+      .set('x-auth', users[1].tokens[0].token)
+      .send({
+        completed: true,
+        text
+      })
+      .expect(404)
+      .end(done);
+  });
+
+  it('Should clear completedAt when myke is not completed', (done) => {
+    var hexId = mykes[0]._id.toHexString();
+    var text = "This should be the new text";
+
+    request(app)
+      .patch(`/mykes/${hexId}`)
+      .set('x-auth', users[0].tokens[0].token)
+      .send({
+        completed: false,
+        text
+      })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.myke.text).toBe(text);
+        expect(res.body.myke.completed).toBe(false);
+        expect(typeof parseInt(res.body.myke.completedAt)).toBe('number');
+      })
+      .end(done);
+  })
+});
+
+
+
 
 describe('GET /users/me', () => {
   it('should return user if authenticated', (done) => {

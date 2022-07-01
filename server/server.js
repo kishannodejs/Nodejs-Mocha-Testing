@@ -3,12 +3,15 @@ require('./config/config');
 const _ = require('lodash');
 const express = require('express');
 const bodyParser = require('body-parser');
+require('dotenv').config()
 const {ObjectID} = require('mongodb');
 
 var {mongoose} = require('./db/mongoose');
 var {Todo} = require('./models/todo');
+var {Myke} = require('./models/myke');
 var {User} = require('./models/user');
 var {authenticate} = require('./middleware/authenticate');
+
 
 var app = express();
 var port = process.env.PORT;
@@ -95,6 +98,86 @@ app.patch('/todos/:id', authenticate, (req, res) => {
   })
 });
 
+app.post('/mykes', authenticate, (req, res) => {
+  var myke = new Myke({
+    text: req.body.text,
+    _creator: req.user._id
+  });
+
+  myke.save().then((doc) => {
+    res.send(doc);
+  }).catch((err) => {
+    res.status(400).send(err);
+  })
+});
+
+app.get('/mykes', authenticate, (req, res) => {
+  Myke.find({
+    _creator: req.user._id
+  }).then((mykes) => {
+    res.send({mykes});
+  }).catch((err) => {
+    res.status(400).send(err);
+  })
+});
+
+app.get('/mykes/:id', authenticate, (req, res) => {
+  var id = req.params.id;
+
+  if(!ObjectID.isValid(id)) return res.status(400).send();
+
+  Myke.findOne({
+    _id: id,
+    _creator: req.user._id
+  }).then((myke) => {
+    if(!myke) return res.status(404).send();
+
+    res.send({myke});
+  }).catch((err) => {
+    res.status(400).send();
+  });
+});
+
+app.delete('/mykes/:id', authenticate, (req, res) => {
+  var id = req.params.id;
+
+  if(!ObjectID.isValid(id)) return res.status(400).send({error: 'something went worng!'});
+
+  Myke.findOneAndRemove({
+    _id: id,
+    _creator: req.user._id
+  }).then((myke) => {
+    if(!myke) return res.status(404).send();
+
+    res.send({myke});
+  }).catch((err) => {
+    return res.status(400).send();
+  })
+
+});
+
+app.patch('/mykes/:id', authenticate, (req, res) => {
+  var id = req.params.id;
+  var body = _.pick(req.body, ['text', 'completed']);
+
+  if(!ObjectID.isValid(id)) return res.status(400).send({error: 'something went worng!'});
+
+  if(_.isBoolean(body.completed) && body.completed){
+    body.completedAt = new Date().getTime();
+  } else {
+    body.completed = false;
+    body.completedAt = null;
+  }
+
+  Myke.findOneAndUpdate({_id: id, _creator: req.user._id}, {$set: body}, {new: true}).then((myke) => {
+    if(!myke) return res.status(404).send();
+
+    res.send({myke});
+  }).catch((err) => {
+    res.status(400).send();
+  })
+});
+
 app.post('/users', (req, res) => {
   var body = _.pick(req.body, ['email', 'password']);
   var user = new User(body);
@@ -115,9 +198,11 @@ app.get('/users/me', authenticate, (req, res) => {
 app.post('/users/login', (req, res) => {
   var body = _.pick(req.body, ['email', 'password']);
 
+  console.log(body);
+
   User.findByCredentials(body.email, body.password).then((user) => {
     return user.generateAuthToken().then((token) => {
-      res.header("x-auth", token).send(user);
+      res.header("x-auth", token).send({user,token});
     })
   }).catch((err) => {
     res.status(400).send(err);

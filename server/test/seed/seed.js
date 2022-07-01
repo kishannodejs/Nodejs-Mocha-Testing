@@ -2,6 +2,7 @@ const {ObjectID} = require('mongodb');
 const jwt = require('jsonwebtoken');
 
 const {Todo} = require('./../../models/todo');
+const {Myke} = require('./../../models/myke');
 const {User} = require('./../../models/user');
 
 const userOneID = new ObjectID();
@@ -9,7 +10,7 @@ const userTwoID = new ObjectID();
 const users = [{
   _id: userOneID,
   email: "person1@gmail.com",
-  password: "person1PASSWORD",
+  password: "12345678",
   tokens: [{
     access: 'auth',
     token: jwt.sign({_id: userOneID, access: 'auth'}, process.env.JWT_SECRET).toString()
@@ -40,6 +41,25 @@ var addDummyTodoItems = (done) => {
   }).then(() => done());
 };
 
+const mykes = [{
+  _id: new ObjectID(),
+  text: "First test myke",
+  _creator: userOneID
+}, {
+  _id: new ObjectID(),
+  text: "Second test Myke",
+  _creator: userTwoID
+}];
+
+var addDummyMykeItems = (done) => {
+  Myke.deleteMany({}).then(() => {
+    return Myke.insertMany(mykes);
+  }).then(() => done());
+};
+
+
+
+
 var addDummyUsers = (done) => {
   User.deleteMany({}).then(() => {
     var userOne = new User(users[0]).save();
@@ -52,6 +72,8 @@ var addDummyUsers = (done) => {
 module.exports = {
   todos,
   addDummyTodoItems,
+  mykes,
+  addDummyMykeItems,
   users,
   addDummyUsers
 }
